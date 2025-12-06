@@ -1,13 +1,17 @@
 const express = require('express');
 const cors = require('cors');
+const dotenv = require('dotenv');
 const port = process.env.PORT || 3000
 const app = express()
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+
+dotenv.config();
 // middlewere
 app.use(cors())
 app.use(express.json())
 
-const uri = "mongodb+srv://skeletonDB:oDiHqEmt7A1Z8f0a@tanvir369.ymezqkm.mongodb.net/?appName=Tanvir369";
+const uri = `mongodb+srv://${process.env.VITE_userName}:${process.env.VITE_password}@tanvir369.ymezqkm.mongodb.net/?appName=Tanvir369`;
+
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -25,42 +29,19 @@ async function run() {
     try {
         await client.connect()
 
-        const skeletonDB = client.db("skeletondb")
-        const collection = skeletonDB.collection("books")
+        const skeletonDB = client.db("styleDecor")
+        const collection = skeletonDB.collection("services")
 
         // post operations
-        app.post('/books', async(req, res) => {
+        app.post('/services', async(req, res) => {
             const newBooks = req.body;
             const result = await collection.insertOne(newBooks)
             res.send(result)
         })
 
-        //delete operations
-        app.delete('/books/:id', async(req, res) => {
-            const id = req.params.id
-            const query = {_id: new ObjectId(id)}
-            const result = await collection.deleteOne(query)
-            res.send(result)
-        })
-
-        // update operations
-        app.patch('/books/:id', async (req, res) =>{
-            const id = req.params.id
-            const query = {_id: new ObjectId(id)}
-            const updateNEW = req.body
-            const update = {
-                $set: {
-                    title: updateNEW.title,
-                    price: updateNEW.price
-                }
-            }
-
-            const result = await collection.updateOne(query, update)
-            res.send(result)
-        })
 
         //get operations
-        app.get('/books', async ( req, res ) => {
+        app.get('/services', async ( req, res ) => {
             const cursor = collection.find().sort({price: 1})
             const result = await cursor.toArray()
             res.send(result)
