@@ -29,13 +29,20 @@ async function run() {
     try {
         await client.connect()
 
-        const skeletonDB = client.db("styleDecor")
-        const collection = skeletonDB.collection("services")
+        const decorDB = client.db("styleDecor")
+        const collection = decorDB.collection("services")
+        const bookingCollection = decorDB.collection("booking")
 
         // post operations
         app.post('/services', async(req, res) => {
-            const newBooks = req.body;
-            const result = await collection.insertOne(newBooks)
+            const newService = req.body;
+            const result = await collection.insertOne(newService)
+            res.send(result)
+        })
+
+        app.post('/booking', async(req, res) => {
+            const newBooking = req.body;
+            const result = await bookingCollection.insertOne(newBooking)
             res.send(result)
         })
 
