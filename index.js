@@ -48,7 +48,7 @@ async function run() {
         })
 
         //get a single 
-        app.get('/books/:id', async (req,res) => {
+        app.get('/services/:id', async (req,res) => {
             const id = req.params.id
             const query = {_id: new ObjectId(id)}
             const result = await collection.findOne(query)
