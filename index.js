@@ -54,6 +54,12 @@ async function run() {
             res.send(result)
         })
 
+        app.get('/booking', async ( req, res ) => {
+            const cursor = bookingCollection.find().sort({price: 1})
+            const result = await cursor.toArray()
+            res.send(result)
+        })
+
         //get a single 
         app.get('/services/:id', async (req,res) => {
             const id = req.params.id
