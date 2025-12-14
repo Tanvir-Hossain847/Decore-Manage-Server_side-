@@ -73,6 +73,13 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/booking/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await bookingCollection.findOne(query);
+      res.send(result);
+    });
+
     // delete item
     app.delete("/booking/:id", async (req, res) => {
       const id = req.params.id;
@@ -106,7 +113,10 @@ async function run() {
           ],
           customer_email: paymentInfo.email,
           mode: "payment",
-          success_url: `${process.env.SUCCESS_URL}/dashboard/payment-success`,
+          metadata: {
+            packageId: paymentInfo.packageId
+          },
+          success_url: `${process.env.SUCCESS_URL}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
           cancel_url: `${process.env.SUCCESS_URL}/dashboard/payment-canceled`,
         });
 
@@ -114,6 +124,26 @@ async function run() {
         res.send({ url: session.url })
         
       });
+
+      app.patch('/payment-success', async(req, res) => {
+        const sessionId = req.query.session_id
+        const session = await stripe.checkout.sessions.retrieve(sessionId)
+        console.log('session retrived' ,session)
+        if(session.payment_status === 'paid'){
+          const id = session.metadata.packageId;
+          const query = {_id: new ObjectId(id)}
+          const update = {
+            $set: {
+              status: 'paid'
+            }
+          }
+
+          const result = await bookingCollection.updateOne(query, update)
+          res.send(result)
+        }
+        
+        res.send({success: true})
+      })
 
     await client.db("admin").command({ ping: 1 });
     console.log(
