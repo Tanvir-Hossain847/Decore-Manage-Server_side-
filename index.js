@@ -63,6 +63,7 @@ async function run() {
 
     const decorDB = client.db("styleDecor");
     const usercollection = decorDB.collection("users");
+    const decoratorCollection = decorDB.collection("Decorator");
     const collection = decorDB.collection("services");
     const bookingCollection = decorDB.collection("booking");
     const paymentCollection = decorDB.collection("payments");
@@ -73,8 +74,27 @@ async function run() {
       const user = req.body
       user.role = "user",
       user.createdAt = new Date()
+      const email = user.email
+      const userExists = await usercollection.findOne({email})
+
+      if(userExists){
+        return res.send({ message: "user already exists" })
+      }
 
       const result =await usercollection.insertOne(user)
+      res.send(result)
+    })
+
+
+    // Decorators application API
+    app.post('/decorator', async( req, res ) =>{
+      const decorator = req.body
+      const email = req.body.email
+      const alreadyExists = await decoratorCollection.findOne({email})
+      if(alreadyExists){
+        return res.send({message: "already exists"})
+      }
+      const result = await decoratorCollection.insertOne(decorator)
       res.send(result)
     })
 
@@ -99,11 +119,11 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/booking", async (req, res) => {
-      const cursor = bookingCollection.find().sort({ price: 1 });
-      const result = await cursor.toArray();
-      res.send(result);
-    });
+    // app.get("/booking", async (req, res) => {
+    //   const cursor = bookingCollection.find().sort({ price: 1 });
+    //   const result = await cursor.toArray();
+    //   res.send(result);
+    // });
 
     app.get("/booking", async (req, res) => {
       const email = req.query.email;
