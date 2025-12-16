@@ -1,16 +1,49 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
+const crypto = require("crypto");
+dotenv.config();
 const port = process.env.PORT || 3000;
 const app = express();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-dotenv.config();
 const stripe = require("stripe")(process.env.STRIPE_SECRET);
+const admin = require("firebase-admin");
+
+const serviceAccount = require("./style-decor-d89db-firebase-adminsdk-fbsvc-bf21d628a1.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
 // middlewere
 app.use(cors());
 app.use(express.json());
+const varifyFBToken =  async (req, res, next) => {
+  const token = req.headers.authorization;
+ 
+  if(!token){
+    return res.status(401).send({message: 'unauthorized access'})
+  }
+
+  try {
+    const idToken = token.split(' ')[1]
+    const decode = await admin.auth().verifyIdToken(idToken)
+    console.log('decoded', decode);
+    req.decode_email = decode.email;
+    next()
+  } catch (error) {
+    return res.status(401).send({message: 'unauthorized access'})
+  }
+
+}
 
 const uri = `mongodb+srv://${process.env.VITE_userName}:${process.env.VITE_password}@tanvir369.ymezqkm.mongodb.net/?appName=Tanvir369`;
+function generateTrackingId() {
+  const time = Date.now().toString(36).toUpperCase();
+  const random = crypto.randomBytes(4).toString("hex").toUpperCase();
+  return `TRK-${time}-${random}`;
+}
+
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -29,8 +62,22 @@ async function run() {
     await client.connect();
 
     const decorDB = client.db("styleDecor");
+    const usercollection = decorDB.collection("users");
     const collection = decorDB.collection("services");
     const bookingCollection = decorDB.collection("booking");
+    const paymentCollection = decorDB.collection("payments");
+
+
+    // user related Api
+    app.post('/users', async (req, res) => {
+      const user = req.body
+      user.role = "user",
+      user.createdAt = new Date()
+
+      const result =await usercollection.insertOne(user)
+      res.send(result)
+    })
+
 
     // post operations
     app.post("/services", async (req, res) => {
@@ -90,60 +137,113 @@ async function run() {
 
     // payment related API
 
+    app.post("/create-checkout-session", async (req, res) => {
+      const paymentInfo = req.body;
+      const amount = parseInt(paymentInfo.cost) * 100;
 
-    app.post("/create-checkout-session",
-      async (req, res) => {
-        const paymentInfo = req.body;
-        const amount = parseInt(paymentInfo.cost) * 100;
-
-
-        const session = await stripe.checkout.sessions.create({
-          line_items: [
-            {
-              // Provide the exact Price ID (for example, price_1234) of the product you want to sell
-              price_data:{
-                currency: 'BDT',
-                unit_amount: amount,
-                product_data:{
-                    name: paymentInfo.serviceName,
-                }
+      const session = await stripe.checkout.sessions.create({
+        line_items: [
+          {
+            price_data: {
+              currency: "BDT",
+              unit_amount: amount,
+              product_data: {
+                name: paymentInfo.serviceName,
               },
-              quantity: 1,
             },
-          ],
-          customer_email: paymentInfo.email,
-          mode: "payment",
-          metadata: {
-            packageId: paymentInfo.packageId
+            quantity: 1,
           },
-          success_url: `${process.env.SUCCESS_URL}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${process.env.SUCCESS_URL}/dashboard/payment-canceled`,
-        });
-
-        console.log(session);
-        res.send({ url: session.url })
-        
+        ],
+        customer_email: paymentInfo.email,
+        mode: "payment",
+        metadata: {
+          packageName: paymentInfo.serviceName,
+          packageId: paymentInfo.packageId,
+        },
+        success_url: `${process.env.SUCCESS_URL}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.SUCCESS_URL}/dashboard/payment-canceled`,
       });
 
-      app.patch('/payment-success', async(req, res) => {
-        const sessionId = req.query.session_id
-        const session = await stripe.checkout.sessions.retrieve(sessionId)
-        console.log('session retrived' ,session)
-        if(session.payment_status === 'paid'){
-          const id = session.metadata.packageId;
-          const query = {_id: new ObjectId(id)}
-          const update = {
-            $set: {
-              status: 'paid'
-            }
-          }
+      console.log(session);
+      res.send({ url: session.url });
+    });
 
-          const result = await bookingCollection.updateOne(query, update)
-          res.send(result)
+    app.patch("/payment-success", async (req, res) => {
+      const sessionId = req.query.session_id;
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      console.log("session retrived", session);
+      console.log("metadata", session.metadata);
+
+      const transactionId = session.payment_intent
+      const query = {transactionId: transactionId}
+
+      const paymentExists = await paymentCollection.findOne(query)
+
+      if(paymentExists){
+        return res.send({message: "already exists"})
+      }
+
+      if (session.payment_status === "paid") {
+        const id = session.metadata.packageId;
+        const trackingId = generateTrackingId()
+        const query = { _id: new ObjectId(id) };
+        const update = {
+          $set: {
+            status: "Paid",
+            trackingId: trackingId,
+          },
+        };
+
+        const result = await bookingCollection.updateOne(query, update);
+
+
+        const payment = {
+          amountTotal: session.amount_total,
+          currency: session.currency,
+          customerEmail: session.customer_email,
+          packageId: session.metadata.packageId,
+          serviceName: session.metadata.packageName,
+          transactionId: session.payment_intent,
+          PaymentStatus: session.payment_status,
+          trackingId: trackingId,
+          paidAt: new Date(),
         }
-        
-        res.send({success: true})
-      })
+
+        if(session.payment_status === "paid"){
+          const paymentResult = await paymentCollection.insertOne(payment)
+          res.send({
+            success: true, 
+            modifyParcel: result,
+            trackingId: trackingId,
+            transactionId: session.payment_intent,
+            paymentInfo: paymentResult
+          })
+        }
+      }
+    });
+
+     app.get('/payments', varifyFBToken, async(req, res) => {
+      const email = req.query.email;
+      const query = {}
+      if(email){
+          query.customerEmail = email
+
+          if(email !== req.decode_email){
+            return res.status(403).send({message: 'forbidden access'})
+          }
+      }
+      const cursor = paymentCollection.find(query).sort({paidAt: -1})
+      const result = await cursor.toArray()
+      res.send(result)
+    })  
+
+
+    app.delete("/payments/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await paymentCollection.deleteOne(query);
+      res.send(result);
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
@@ -160,5 +260,4 @@ app.listen(port, () => {
   console.log(`this server is running on ${port}`);
 });
 
-// oDiHqEmt7A1Z8f0a
-// skeletonDB
+
