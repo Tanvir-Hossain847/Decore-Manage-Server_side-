@@ -12,30 +12,29 @@ const admin = require("firebase-admin");
 const serviceAccount = require("./style-decor-d89db-firebase-adminsdk-fbsvc-bf21d628a1.json");
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: admin.credential.cert(serviceAccount),
 });
 
 // middlewere
 app.use(cors());
 app.use(express.json());
-const varifyFBToken =  async (req, res, next) => {
+const varifyFBToken = async (req, res, next) => {
   const token = req.headers.authorization;
- 
-  if(!token){
-    return res.status(401).send({message: 'unauthorized access'})
+
+  if (!token) {
+    return res.status(401).send({ message: "unauthorized access" });
   }
 
   try {
-    const idToken = token.split(' ')[1]
-    const decode = await admin.auth().verifyIdToken(idToken)
-    console.log('decoded', decode);
+    const idToken = token.split(" ")[1];
+    const decode = await admin.auth().verifyIdToken(idToken);
+    console.log("decoded", decode);
     req.decode_email = decode.email;
-    next()
+    next();
   } catch (error) {
-    return res.status(401).send({message: 'unauthorized access'})
+    return res.status(401).send({ message: "unauthorized access" });
   }
-
-}
+};
 
 const uri = `mongodb+srv://${process.env.VITE_userName}:${process.env.VITE_password}@tanvir369.ymezqkm.mongodb.net/?appName=Tanvir369`;
 function generateTrackingId() {
@@ -43,7 +42,6 @@ function generateTrackingId() {
   const random = crypto.randomBytes(4).toString("hex").toUpperCase();
   return `TRK-${time}-${random}`;
 }
-
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -68,61 +66,95 @@ async function run() {
     const bookingCollection = decorDB.collection("booking");
     const paymentCollection = decorDB.collection("payments");
 
-
     // user related Api
-    app.post('/users', async (req, res) => {
-      const user = req.body
-      user.role = "user",
-      user.createdAt = new Date()
-      const email = user.email
-      const userExists = await usercollection.findOne({email})
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      (user.role = "user"), (user.createdAt = new Date());
+      const email = user.email;
+      const userExists = await usercollection.findOne({ email });
 
-      if(userExists){
-        return res.send({ message: "user already exists" })
+      if (userExists) {
+        return res.send({ message: "user already exists" });
       }
 
-      const result =await usercollection.insertOne(user)
-      res.send(result)
-    })
+      const result = await usercollection.insertOne(user);
+      res.send(result);
+    });
 
 
-    // Decorators related API
-    app.get('/decorator', async(req,res) =>{
-      const query = {}
-      if(req.query.status){
-        query.status = req.query.status
-      }
-      const cursor = decoratorCollection.find(query)
-      const result = await cursor.toArray()
-      res.send(result)
-    })
+     app.get("/users", async (req, res) => {
+      const cursor = usercollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
 
 
-    app.post('/decorator', async( req, res ) =>{
-      const decorator = req.body
-      const email = req.body.email
-      const alreadyExists = await decoratorCollection.findOne({email})
-      if(alreadyExists){
-        return res.send({message: "already exists"})
-      }
-      const result = await decoratorCollection.insertOne(decorator)
-      res.send(result)
-    })
-
-
-    app.patch('/decorator/:id', varifyFBToken ,async(req, res) => {
-      const status = req.body.status
+    app.patch("/decorator/:id", varifyFBToken, async (req, res) => {
+      const status = req.body.status;
       const id = req.params.id;
-      const query = {_id: new ObjectId(id)}
+      const query = { _id: new ObjectId(id) };
       const updatedDoc = {
         $set: {
-          status: status
-        }
-      }
-      const result = await decoratorCollection.updateOne(query, updatedDoc)
+          status: status,
+        },
+      };
+      const result = await decoratorCollection.updateOne(query, updatedDoc);
       res.send(result)
-    })
+    });
 
+    // Decorators related API
+    app.get("/decorator", async (req, res) => {
+      const query = {};
+      if (req.query.status) {
+        query.status = req.query.status;
+      }
+      const cursor = decoratorCollection.find(query).sort({applicationDate: -1});
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    app.post("/decorator", async (req, res) => {
+      const decorator = req.body;
+      const email = req.body.email;
+      const alreadyExists = await decoratorCollection.findOne({ email });
+      if (alreadyExists) {
+        return res.send({ message: "already exists" });
+      }
+      const result = await decoratorCollection.insertOne(decorator);
+      res.send(result);
+    });
+
+    app.patch("/decorator/:id", varifyFBToken, async (req, res) => {
+      const status = req.body.status;
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          status: status,
+        },
+      };
+      const result = await decoratorCollection.updateOne(query, updatedDoc);
+
+      if(status === "Approved"){
+        const email = req.body.email
+        const userQuery = {email}
+        const UpdateRole = {
+          $set: {
+            role: 'Decorator'
+          }
+        }
+        const userResult = await usercollection.updateOne(userQuery, UpdateRole);
+      }
+
+      res.send(result);
+    });
+
+    app.delete("/decorator/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await decoratorCollection.deleteOne(query);
+      res.send(result);
+    });
 
     // post operations
     app.post("/services", async (req, res) => {
@@ -219,18 +251,18 @@ async function run() {
       console.log("session retrived", session);
       console.log("metadata", session.metadata);
 
-      const transactionId = session.payment_intent
-      const query = {transactionId: transactionId}
+      const transactionId = session.payment_intent;
+      const query = { transactionId: transactionId };
 
-      const paymentExists = await paymentCollection.findOne(query)
+      const paymentExists = await paymentCollection.findOne(query);
 
-      if(paymentExists){
-        return res.send({message: "already exists"})
+      if (paymentExists) {
+        return res.send({ message: "already exists" });
       }
 
       if (session.payment_status === "paid") {
         const id = session.metadata.packageId;
-        const trackingId = generateTrackingId()
+        const trackingId = generateTrackingId();
         const query = { _id: new ObjectId(id) };
         const update = {
           $set: {
@@ -240,7 +272,6 @@ async function run() {
         };
 
         const result = await bookingCollection.updateOne(query, update);
-
 
         const payment = {
           amountTotal: session.amount_total,
@@ -252,36 +283,35 @@ async function run() {
           PaymentStatus: session.payment_status,
           trackingId: trackingId,
           paidAt: new Date(),
-        }
+        };
 
-        if(session.payment_status === "paid"){
-          const paymentResult = await paymentCollection.insertOne(payment)
+        if (session.payment_status === "paid") {
+          const paymentResult = await paymentCollection.insertOne(payment);
           res.send({
-            success: true, 
+            success: true,
             modifyParcel: result,
             trackingId: trackingId,
             transactionId: session.payment_intent,
-            paymentInfo: paymentResult
-          })
+            paymentInfo: paymentResult,
+          });
         }
       }
     });
 
-     app.get('/payments', varifyFBToken, async(req, res) => {
+    app.get("/payments", varifyFBToken, async (req, res) => {
       const email = req.query.email;
-      const query = {}
-      if(email){
-          query.customerEmail = email
+      const query = {};
+      if (email) {
+        query.customerEmail = email;
 
-          if(email !== req.decode_email){
-            return res.status(403).send({message: 'forbidden access'})
-          }
+        if (email !== req.decode_email) {
+          return res.status(403).send({ message: "forbidden access" });
+        }
       }
-      const cursor = paymentCollection.find(query).sort({paidAt: -1})
-      const result = await cursor.toArray()
-      res.send(result)
-    })  
-
+      const cursor = paymentCollection.find(query).sort({ paidAt: -1 });
+      const result = await cursor.toArray();
+      res.send(result);
+    });
 
     app.delete("/payments/:id", async (req, res) => {
       const id = req.params.id;
@@ -304,5 +334,3 @@ run().catch(console.dir);
 app.listen(port, () => {
   console.log(`this server is running on ${port}`);
 });
-
-
