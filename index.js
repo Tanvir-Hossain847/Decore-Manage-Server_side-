@@ -86,7 +86,18 @@ async function run() {
     })
 
 
-    // Decorators application API
+    // Decorators related API
+    app.get('/decorator', async(req,res) =>{
+      const query = {}
+      if(req.query.status){
+        query.status = req.query.status
+      }
+      const cursor = decoratorCollection.find(query)
+      const result = await cursor.toArray()
+      res.send(result)
+    })
+
+
     app.post('/decorator', async( req, res ) =>{
       const decorator = req.body
       const email = req.body.email
@@ -95,6 +106,20 @@ async function run() {
         return res.send({message: "already exists"})
       }
       const result = await decoratorCollection.insertOne(decorator)
+      res.send(result)
+    })
+
+
+    app.patch('/decorator/:id', varifyFBToken ,async(req, res) => {
+      const status = req.body.status
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const updatedDoc = {
+        $set: {
+          status: status
+        }
+      }
+      const result = await decoratorCollection.updateOne(query, updatedDoc)
       res.send(result)
     })
 
