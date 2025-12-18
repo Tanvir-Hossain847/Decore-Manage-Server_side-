@@ -66,6 +66,19 @@ async function run() {
     const bookingCollection = decorDB.collection("booking");
     const paymentCollection = decorDB.collection("payments");
 
+    // middlewere for admin
+    const varifyAdmin = async(req, res, next) =>{
+      const email = req.decode_email
+      const query = {email}
+      const user = await usercollection.findOne(query)
+
+      if(!user || user.role !== "Admin"){
+        return res.status(403).send({message: "Forbidden"})
+      }
+      next()
+    }
+
+
     // user related Api
     app.post("/users", async (req, res) => {
       const user = req.body;
@@ -96,7 +109,7 @@ async function run() {
     });
 
 
-    app.patch("/users/:id", varifyFBToken, async (req, res) => {
+    app.patch("/users/:id/role", varifyFBToken, varifyAdmin, async (req, res) => {
       const role = req.body.role;
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
