@@ -88,17 +88,24 @@ async function run() {
       res.send(result);
     });
 
+     app.get("/users/:email/role", async (req, res) => {
+      const email = req.params.email
+      const query = { email }
+      const user = await usercollection.findOne(query);
+      res.send({role: user?.role || "user"});
+    });
 
-    app.patch("/decorator/:id", varifyFBToken, async (req, res) => {
-      const status = req.body.status;
+
+    app.patch("/users/:id", varifyFBToken, async (req, res) => {
+      const role = req.body.role;
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const updatedDoc = {
         $set: {
-          status: status,
+          role: role,
         },
       };
-      const result = await decoratorCollection.updateOne(query, updatedDoc);
+      const result = await usercollection.updateOne(query, updatedDoc);
       res.send(result)
     });
 
@@ -181,6 +188,12 @@ async function run() {
     //   const result = await cursor.toArray();
     //   res.send(result);
     // });
+
+    app.get("/booking", async (req, res) => {
+      const cursor = bookingCollection.find()
+      const result = await cursor.toArray();
+      res.send(result);
+    });
 
     app.get("/booking", async (req, res) => {
       const email = req.query.email;
