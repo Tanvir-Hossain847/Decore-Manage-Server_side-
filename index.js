@@ -124,9 +124,13 @@ async function run() {
 
     // Decorators related API
     app.get("/decorator", async (req, res) => {
+      const {status, currentStatus} = req.query;
       const query = {};
-      if (req.query.status) {
-        query.status = req.query.status;
+      if (status) {
+        query.status = status;
+      }
+      if(currentStatus){
+        query.currentStatus = currentStatus;
       }
       const cursor = decoratorCollection.find(query).sort({applicationDate: -1});
       const result = await cursor.toArray();
@@ -151,6 +155,7 @@ async function run() {
       const updatedDoc = {
         $set: {
           status: status,
+          currentStatus: "Available"
         },
       };
       const result = await decoratorCollection.updateOne(query, updatedDoc);
@@ -196,21 +201,18 @@ async function run() {
       res.send(result);
     });
 
-    // app.get("/booking", async (req, res) => {
-    //   const cursor = bookingCollection.find().sort({ price: 1 });
-    //   const result = await cursor.toArray();
-    //   res.send(result);
-    // });
 
     app.get("/booking", async (req, res) => {
-      const cursor = bookingCollection.find()
-      const result = await cursor.toArray();
-      res.send(result);
-    });
+      const query = {};
+      const {email, workStatus} = req.query;
+      if(email){
+        query.userEmail = email;
+      }
 
-    app.get("/booking", async (req, res) => {
-      const email = req.query.email;
-      const query = { userEmail: email };
+      if(workStatus){
+        query.workStatus = workStatus;
+      } 
+
       const result = await bookingCollection.find(query).toArray();
       res.send(result);
     });
@@ -222,6 +224,73 @@ async function run() {
       const result = await collection.findOne(query);
       res.send(result);
     });
+
+    app.get('/booking/decorator', async(req, res) => {
+      const {decoratorEmail, workStatus} = req.query;
+      const query = {}
+      if(decoratorEmail){
+        query.decoratorEmail = decoratorEmail
+      }
+      if(workStatus){
+        query.workStatus = {$in: ['Decorator_Assigned', 'Accepted']}
+      }
+      const cursor = bookingCollection.find(query)
+      const result = await cursor.toArray()
+      res.send(result)
+    })
+
+    app.patch("/booking/:id", async (req, res) => {
+      const { decoratorId, decoratorName, decoratorEmail } = req.body
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const update = {
+        $set: {
+          workStatus: "Decorator_Assigned",
+          decoratorId: decoratorId,
+          decoratorName: decoratorName,
+          decoratorEmail: decoratorEmail,
+        }
+      }
+      const result = await bookingCollection.updateOne(query, update)
+      console.log(result);
+      
+      
+      // update decorator info
+      const decoratorQuery = { _id: new ObjectId(decoratorId) }
+      const decoratorUpdate = {
+        $set: {
+          currentStatus: "On-Assignment"
+        }
+      }
+      const decoratorResult = await decoratorCollection.updateOne(decoratorQuery, decoratorUpdate)
+      res.send(decoratorResult)
+    });
+
+
+        app.patch("/decorator/:id/status", async(req, res) => {
+        const {currentStatus} = req.body
+        const query = {_id: new ObjectId(req.params.id)}
+        const updateInfo = {
+          $set: {
+            currentStatus: currentStatus,
+          }
+        }
+        const result = await decoratorCollection.updateOne(query, updateInfo)
+        res.send(result)
+    })
+
+
+    app.patch("/booking/:id/status", async(req, res) => {
+        const {workStatus} = req.body
+        const query = {_id: new ObjectId(req.params.id)}
+        const updateInfo = {
+          $set: {
+            workStatus: workStatus,
+          }
+        }
+        const result = await bookingCollection.updateOne(query, updateInfo)
+        res.send(result)
+    })
 
     app.get("/booking/:id", async (req, res) => {
       const id = req.params.id;
@@ -293,6 +362,7 @@ async function run() {
         const update = {
           $set: {
             status: "Paid",
+            workStatus: "Pending",
             trackingId: trackingId,
           },
         };
