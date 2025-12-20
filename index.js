@@ -210,7 +210,7 @@ async function run() {
       }
 
       if(workStatus){
-        query.workStatus = workStatus;
+        query.workStatus = {$in: ['Pending', 'Rejected']}
       } 
 
       const result = await bookingCollection.find(query).toArray();
@@ -233,6 +233,20 @@ async function run() {
       }
       if(workStatus){
         query.workStatus = {$in: ['Decorator_Assigned', 'Accepted']}
+      }
+      const cursor = bookingCollection.find(query)
+      const result = await cursor.toArray()
+      res.send(result)
+    })
+
+    app.get('/booking/complete', async(req, res) => {
+      const {decoratorEmail, workStatus} = req.query;
+      const query = {}
+      if(decoratorEmail){
+        query.decoratorEmail = decoratorEmail
+      }
+      if(workStatus){
+        query.workStatus = ("Completed")
       }
       const cursor = bookingCollection.find(query)
       const result = await cursor.toArray()
