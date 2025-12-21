@@ -9,7 +9,10 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const stripe = require("stripe")(process.env.STRIPE_SECRET);
 const admin = require("firebase-admin");
 
-const serviceAccount = require("./style-decor-d89db-firebase-adminsdk-fbsvc-bf21d628a1.json");
+// const serviceAccount = require("./style-decor-d89db-firebase-adminsdk-fbsvc-bf21d628a1.json");
+
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
+const serviceAccount = JSON.parse(decoded);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -36,7 +39,7 @@ const varifyFBToken = async (req, res, next) => {
   }
 };
 
-const uri = `mongodb+srv://${process.env.VITE_userName}:${process.env.VITE_password}@tanvir369.ymezqkm.mongodb.net/?appName=Tanvir369`;
+const uri = `mongodb+srv://${process.env.DB_userName}:${process.env.DB_password}@tanvir369.ymezqkm.mongodb.net/?appName=Tanvir369`;
 function generateTrackingId() {
   const time = Date.now().toString(36).toUpperCase();
   const random = crypto.randomBytes(4).toString("hex").toUpperCase();
@@ -430,10 +433,10 @@ async function run() {
       res.send(result);
     });
 
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
     //  await client.close();
   }
