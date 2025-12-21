@@ -11,7 +11,9 @@ const admin = require("firebase-admin");
 
 // const serviceAccount = require("./style-decor-d89db-firebase-adminsdk-fbsvc-bf21d628a1.json");
 
-const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, "base64").toString(
+  "utf8"
+);
 const serviceAccount = JSON.parse(decoded);
 
 admin.initializeApp({
@@ -60,7 +62,7 @@ app.get("/", (req, res) => {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     const decorDB = client.db("styleDecor");
     const usercollection = decorDB.collection("users");
@@ -70,17 +72,16 @@ async function run() {
     const paymentCollection = decorDB.collection("payments");
 
     // middlewere for admin
-    const varifyAdmin = async(req, res, next) =>{
-      const email = req.decode_email
-      const query = {email}
-      const user = await usercollection.findOne(query)
+    const varifyAdmin = async (req, res, next) => {
+      const email = req.decode_email;
+      const query = { email };
+      const user = await usercollection.findOne(query);
 
-      if(!user || user.role !== "Admin"){
-        return res.status(403).send({message: "Forbidden"})
+      if (!user || user.role !== "Admin") {
+        return res.status(403).send({ message: "Forbidden" });
       }
-      next()
-    }
-
+      next();
+    };  
 
     // user related Api
     app.post("/users", async (req, res) => {
@@ -97,45 +98,50 @@ async function run() {
       res.send(result);
     });
 
-
-     app.get("/users", async (req, res) => {
+    app.get("/users", async (req, res) => {
       const cursor = usercollection.find();
       const result = await cursor.toArray();
       res.send(result);
     });
 
-     app.get("/users/:email/role", async (req, res) => {
-      const email = req.params.email
-      const query = { email }
+    app.get("/users/:email/role", async (req, res) => {
+      const email = req.params.email;
+      const query = { email };
       const user = await usercollection.findOne(query);
-      res.send({role: user?.role || "user"});
+      res.send({ role: user?.role || "user" });
     });
 
-
-    app.patch("/users/:id/role", varifyFBToken, varifyAdmin, async (req, res) => {
-      const role = req.body.role;
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const updatedDoc = {
-        $set: {
-          role: role,
-        },
-      };
-      const result = await usercollection.updateOne(query, updatedDoc);
-      res.send(result)
-    });
+    app.patch(
+      "/users/:id/role",
+      varifyFBToken,
+      varifyAdmin,
+      async (req, res) => {
+        const role = req.body.role;
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: {
+            role: role,
+          },
+        };
+        const result = await usercollection.updateOne(query, updatedDoc);
+        res.send(result);
+      }
+    );
 
     // Decorators related API
     app.get("/decorator", async (req, res) => {
-      const {status, currentStatus} = req.query;
+      const { status, currentStatus } = req.query;
       const query = {};
       if (status) {
         query.status = status;
       }
-      if(currentStatus){
+      if (currentStatus) {
         query.currentStatus = currentStatus;
       }
-      const cursor = decoratorCollection.find(query).sort({applicationDate: -1});
+      const cursor = decoratorCollection
+        .find(query)
+        .sort({ applicationDate: -1 });
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -158,20 +164,23 @@ async function run() {
       const updatedDoc = {
         $set: {
           status: status,
-          currentStatus: "Available"
+          currentStatus: "Available",
         },
       };
       const result = await decoratorCollection.updateOne(query, updatedDoc);
 
-      if(status === "Approved"){
-        const email = req.body.email
-        const userQuery = {email}
+      if (status === "Approved") {
+        const email = req.body.email;
+        const userQuery = { email };
         const UpdateRole = {
           $set: {
-            role: 'Decorator'
-          }
-        }
-        const userResult = await usercollection.updateOne(userQuery, UpdateRole);
+            role: "Decorator",
+          },
+        };
+        const userResult = await usercollection.updateOne(
+          userQuery,
+          UpdateRole
+        );
       }
 
       res.send(result);
@@ -204,17 +213,16 @@ async function run() {
       res.send(result);
     });
 
-
     app.get("/booking", async (req, res) => {
       const query = {};
-      const {email, workStatus} = req.query;
-      if(email){
+      const { email, workStatus } = req.query;
+      if (email) {
         query.userEmail = email;
       }
 
-      if(workStatus){
-        query.workStatus = {$in: ['Pending', 'Rejected']}
-      } 
+      if (workStatus) {
+        query.workStatus = { $in: ["Pending", "Rejected"] };
+      }
 
       const result = await bookingCollection.find(query).toArray();
       res.send(result);
@@ -228,36 +236,36 @@ async function run() {
       res.send(result);
     });
 
-    app.get('/booking/decorator', async(req, res) => {
-      const {decoratorEmail, workStatus} = req.query;
-      const query = {}
-      if(decoratorEmail){
-        query.decoratorEmail = decoratorEmail
+    app.get("/booking/decorator", async (req, res) => {
+      const { decoratorEmail, workStatus } = req.query;
+      const query = {};
+      if (decoratorEmail) {
+        query.decoratorEmail = decoratorEmail;
       }
-      if(workStatus){
-        query.workStatus = {$in: ['Decorator_Assigned', 'Accepted']}
+      if (workStatus) {
+        query.workStatus = { $in: ["Decorator_Assigned", "Accepted"] };
       }
-      const cursor = bookingCollection.find(query)
-      const result = await cursor.toArray()
-      res.send(result)
-    })
+      const cursor = bookingCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
 
-    app.get('/booking/complete', async(req, res) => {
-      const {decoratorEmail, workStatus} = req.query;
-      const query = {}
-      if(decoratorEmail){
-        query.decoratorEmail = decoratorEmail
+    app.get("/booking/complete", async (req, res) => {
+      const { decoratorEmail, workStatus } = req.query;
+      const query = {};
+      if (decoratorEmail) {
+        query.decoratorEmail = decoratorEmail;
       }
-      if(workStatus){
-        query.workStatus = ("Completed")
+      if (workStatus) {
+        query.workStatus = "Completed";
       }
-      const cursor = bookingCollection.find(query)
-      const result = await cursor.toArray()
-      res.send(result)
-    })
+      const cursor = bookingCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
 
     app.patch("/booking/:id", async (req, res) => {
-      const { decoratorId, decoratorName, decoratorEmail } = req.body
+      const { decoratorId, decoratorName, decoratorEmail } = req.body;
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const update = {
@@ -266,48 +274,48 @@ async function run() {
           decoratorId: decoratorId,
           decoratorName: decoratorName,
           decoratorEmail: decoratorEmail,
-        }
-      }
-      const result = await bookingCollection.updateOne(query, update)
+        },
+      };
+      const result = await bookingCollection.updateOne(query, update);
       console.log(result);
-      
-      
+
       // update decorator info
-      const decoratorQuery = { _id: new ObjectId(decoratorId) }
+      const decoratorQuery = { _id: new ObjectId(decoratorId) };
       const decoratorUpdate = {
         $set: {
-          currentStatus: "On-Assignment"
-        }
-      }
-      const decoratorResult = await decoratorCollection.updateOne(decoratorQuery, decoratorUpdate)
-      res.send(decoratorResult)
+          currentStatus: "On-Assignment",
+        },
+      };
+      const decoratorResult = await decoratorCollection.updateOne(
+        decoratorQuery,
+        decoratorUpdate
+      );
+      res.send(decoratorResult);
     });
 
+    app.patch("/decorator/:id/status", async (req, res) => {
+      const { currentStatus } = req.body;
+      const query = { _id: new ObjectId(req.params.id) };
+      const updateInfo = {
+        $set: {
+          currentStatus: currentStatus,
+        },
+      };
+      const result = await decoratorCollection.updateOne(query, updateInfo);
+      res.send(result);
+    });
 
-        app.patch("/decorator/:id/status", async(req, res) => {
-        const {currentStatus} = req.body
-        const query = {_id: new ObjectId(req.params.id)}
-        const updateInfo = {
-          $set: {
-            currentStatus: currentStatus,
-          }
-        }
-        const result = await decoratorCollection.updateOne(query, updateInfo)
-        res.send(result)
-    })
-
-
-    app.patch("/booking/:id/status", async(req, res) => {
-        const {workStatus} = req.body
-        const query = {_id: new ObjectId(req.params.id)}
-        const updateInfo = {
-          $set: {
-            workStatus: workStatus,
-          }
-        }
-        const result = await bookingCollection.updateOne(query, updateInfo)
-        res.send(result)
-    })
+    app.patch("/booking/:id/status", async (req, res) => {
+      const { workStatus } = req.body;
+      const query = { _id: new ObjectId(req.params.id) };
+      const updateInfo = {
+        $set: {
+          workStatus: workStatus,
+        },
+      };
+      const result = await bookingCollection.updateOne(query, updateInfo);
+      res.send(result);
+    });
 
     app.get("/booking/:id", async (req, res) => {
       const id = req.params.id;
